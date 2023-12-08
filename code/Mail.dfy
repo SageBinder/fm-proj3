@@ -45,6 +45,13 @@ class Message
     ensures content == ""
     ensures sender == s
     ensures recipients == []
+  {
+    id := new MessageId();
+    content := "";
+    date := new Date();
+    sender := s;
+    recipients := [];
+  }
  
   method setContent(c: string)
     modifies this
@@ -94,6 +101,8 @@ class Mailbox
  
   // Creates an empty mailbox with name n
   constructor (n: string)
+    ensures name == n
+    ensures messages == {}
   {
     name := n;
     messages := {};
@@ -175,41 +184,56 @@ class MailApp {
   }
 
   constructor ()
+    ensures isValid()
+    ensures inbox.name == "Inbox" && inbox.messages == {}
+    ensures drafts.name == "Drafts" && drafts.messages == {}
+    ensures trash.name == "Trash" && trash.messages == {}
+    ensures sent.name == "Sent" && sent.messages == {}
+    ensures userBoxes == {}
   {
     inbox := new Mailbox("Inbox");
     drafts := new Mailbox("Drafts");
     trash := new Mailbox("Trash");
     sent := new Mailbox("Sent");
     userboxList := Nil;
+
+    userBoxes := {};
   }
 
   // Deletes user-defined mailbox mb
   method deleteMailbox(mb: Mailbox)
-    modifies userBoxes
     modifies this
     requires isValid()
     requires mb in userBoxes
     ensures systemBoxes() == old(systemBoxes())
-    ensures L.elements(userboxList) == L.elements(old(userboxList)) - {mb}
+    ensures userBoxes == old(userBoxes) - {mb}
     ensures isValid()  
-    //ensures userBoxes == old(userBoxes) - {mb}  
   {
     userboxList := remove(userboxList, mb);
+    userBoxes := userBoxes - {mb};
   }
 
   // Adds a new mailbox with name n to set of user-defined mailboxes
   // provided that no user-defined mailbox has name n already
   method newMailbox(n: string)
     modifies this
-
+    requires isValid()
+    requires !exists mb | mb in userBoxes :: mb.name == n
+    ensures systemBoxes() == old(systemBoxes())
+    ensures exists nb: Mailbox :: (fresh(nb) && nb.name == n && nb.messages == {} && userBoxes == old(userBoxes) + {nb})
+    ensures isValid()
   {
     var mb := new Mailbox(n);
     userboxList := Cons(mb, userboxList);
+    userBoxes := userBoxes + {mb};
   }
 
   // Adds a new message with sender s to the drafts mailbox
   method newMessage(s: Address)
     modifies drafts
+    requires isValid()
+    ensures exists n: Message :: n.sender == s && fresh(n) && drafts.messages == old(drafts.messages) + {n}
+    ensures isValid()
   {
     var m := new Message(s);
     drafts.add(m);
@@ -218,6 +242,12 @@ class MailApp {
   // Moves message m from mailbox mb1 to a different mailbox mb2
   method moveMessage (m: Message, mb1: Mailbox, mb2: Mailbox)
     modifies mb1, mb2
+    requires isValid()
+    requires m in mb1.messages
+    requires m !in mb2.messages
+    ensures mb1.messages == old(mb1.messages) - {m} && mb1.name == old(mb1.name)
+    ensures mb2.messages == old(mb2.messages) + {m} && mb2.name == old(mb2.name)
+    ensures isValid()
   {
     mb1.remove(m);
     mb2.add(m);
@@ -226,8 +256,14 @@ class MailApp {
   // Moves message m from non-null mailbox mb to the trash mailbox
   // provided that mb is not the trash mailbox
   method deleteMessage (m: Message, mb: Mailbox)
-   modifies mb, trash
-
+    modifies mb, trash
+    requires isValid()
+    requires m in mb.messages
+    requires m !in trash.messages
+    requires mb != trash
+    ensures mb.messages == old(mb.messages) - {m} && mb.name == old(mb.name)
+    ensures trash.messages == old(trash.messages) + {m} && trash.name == old(trash.name)
+    ensures isValid()
   {
     moveMessage(m, mb, trash);
   }
@@ -235,7 +271,12 @@ class MailApp {
   // Moves message m from the drafts mailbox to the sent mailbox
   method sendMessage(m: Message)
     modifies drafts, sent
-
+    requires isValid()
+    requires m in drafts.messages
+    requires m !in sent.messages
+    ensures drafts.messages == old(drafts.messages) - {m} && drafts.name == old(drafts.name)
+    ensures sent.messages == old(sent.messages) + {m} && sent.name == old(sent.name)
+    ensures isValid()
   {
     moveMessage(m, drafts, sent);
   }
@@ -243,6 +284,9 @@ class MailApp {
   // Empties the trash mailbox
   method emptyTrash ()
     modifies trash
+    requires isValid()
+    ensures trash.name == old(trash.name) && trash.messages == {}
+    ensures isValid()
   {
     trash.empty();
   }
