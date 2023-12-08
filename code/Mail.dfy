@@ -4,7 +4,7 @@
 
   Mini Project 3 - Part B
 
-  Your name(s): 
+  Your name(s): Shweta Rajiv and Sage Binder
   ===============================================*/
 
 include "List.dfy"
@@ -51,6 +51,9 @@ class Message
     ensures content == c
     ensures {id, date, sender} == old({id, date, sender})
     ensures recipients == old(recipients)
+    {
+      content := c;
+    }
  
   method setDate(d: Date)
     modifies this
@@ -58,6 +61,9 @@ class Message
     ensures {id, sender} == old({id, sender})
     ensures recipients == old(recipients)
     ensures content == old(content)
+    {
+      date := d;
+    }
  
   method addRecipient(p: nat, r: Address)
     modifies this
@@ -68,6 +74,10 @@ class Message
     ensures forall i :: p < i < |recipients| ==> recipients[i] == old(recipients[i-1])
     ensures {id, date, sender} == old({id, date, sender})
     ensures content == old(content)
+    {
+      recipients := (recipients[0..p]) + [r] + (recipients[p..|(recipients)|]);
+    }
+      
 }
 
 //==========================================================
@@ -77,7 +87,8 @@ class Message
 // Each Mailbox has a name, which is a string. 
 // Its main content is a set of messages.
 //
-class Mailbox {
+class Mailbox 
+  {
   var name: string
   var messages: set<Message>
  
@@ -90,6 +101,10 @@ class Mailbox {
 
   // Adds message m to the mailbox
   method add(m: Message)
+    modifies this
+    requires m !in messages
+    ensures messages == old(messages) + {m}
+    ensures name == old(name)    
   {    
     messages := { m } + messages;
   }
@@ -97,12 +112,20 @@ class Mailbox {
   // Removes message m from mailbox
   // m need not be in the mailbox 
   method remove(m: Message)
+    modifies this
+    ensures messages == old(messages) - {m}
+    ensures name == old(name)  
+
   {
     messages := messages - { m };
   }
 
   // Empties the mailbox
   method empty()
+    modifies this
+    ensures messages == {}
+    ensures name == old(name)  
+
   {
     messages := {};
   }
@@ -131,6 +154,8 @@ class MailApp {
 
   // Class invariant
   ghost predicate isValid() 
+    reads userBoxes
+    reads this
   {
     // replace each `true` by your formulation of the invariants 
     // described below
@@ -138,15 +163,15 @@ class MailApp {
     // Abstract state invariants
     //----------------------------------------------------------
     // 1. all system mailboxes (inbox, ..., sent) are distinct
-    && true
+    |systemBoxes()| == 4
     // 2. none of the system mailboxes are in the set
     //    of user-defined mailboxes
-    && true
+    && (systemBoxes() * userBoxes) == {}
     //----------------------------------------------------------
     // Abstract-to-concrete state invariants
     //----------------------------------------------------------
     // userBoxes is the set of mailboxes in userboxList
-    && true
+    && userBoxes == L.elements(userboxList)
   }
 
   constructor ()
@@ -160,6 +185,14 @@ class MailApp {
 
   // Deletes user-defined mailbox mb
   method deleteMailbox(mb: Mailbox)
+    modifies userBoxes
+    modifies this
+    requires isValid()
+    requires mb in userBoxes
+    ensures systemBoxes() == old(systemBoxes())
+    ensures L.elements(userboxList) == L.elements(old(userboxList)) - {mb}
+    ensures isValid()  
+    //ensures userBoxes == old(userBoxes) - {mb}  
   {
     userboxList := remove(userboxList, mb);
   }
@@ -167,6 +200,8 @@ class MailApp {
   // Adds a new mailbox with name n to set of user-defined mailboxes
   // provided that no user-defined mailbox has name n already
   method newMailbox(n: string)
+    modifies this
+
   {
     var mb := new Mailbox(n);
     userboxList := Cons(mb, userboxList);
@@ -174,6 +209,7 @@ class MailApp {
 
   // Adds a new message with sender s to the drafts mailbox
   method newMessage(s: Address)
+    modifies drafts
   {
     var m := new Message(s);
     drafts.add(m);
@@ -181,6 +217,7 @@ class MailApp {
 
   // Moves message m from mailbox mb1 to a different mailbox mb2
   method moveMessage (m: Message, mb1: Mailbox, mb2: Mailbox)
+    modifies mb1, mb2
   {
     mb1.remove(m);
     mb2.add(m);
@@ -189,18 +226,23 @@ class MailApp {
   // Moves message m from non-null mailbox mb to the trash mailbox
   // provided that mb is not the trash mailbox
   method deleteMessage (m: Message, mb: Mailbox)
+   modifies mb, trash
+
   {
     moveMessage(m, mb, trash);
   }
 
   // Moves message m from the drafts mailbox to the sent mailbox
   method sendMessage(m: Message)
+    modifies drafts, sent
+
   {
     moveMessage(m, drafts, sent);
   }
 
   // Empties the trash mailbox
   method emptyTrash ()
+    modifies trash
   {
     trash.empty();
   }
