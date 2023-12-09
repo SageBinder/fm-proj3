@@ -220,7 +220,7 @@ class MailApp {
     requires isValid()
     requires !exists mb | mb in userBoxes :: mb.name == n
     ensures systemBoxes() == old(systemBoxes())
-    ensures exists nb: Mailbox :: (fresh(nb) && nb.name == n && nb.messages == {} && userBoxes == old(userBoxes) + {nb})
+    ensures exists nb: Mailbox :: fresh(nb) && nb.name == n && nb.messages == {} && userBoxes == old(userBoxes) + {nb}
     ensures isValid()
   {
     var mb := new Mailbox(n);
@@ -232,7 +232,7 @@ class MailApp {
   method newMessage(s: Address)
     modifies drafts
     requires isValid()
-    ensures exists n: Message :: n.sender == s && fresh(n) && drafts.messages == old(drafts.messages) + {n}
+    ensures exists n: Message :: fresh(n) && n.sender == s && drafts.messages == old(drafts.messages) + {n}
     ensures isValid()
   {
     var m := new Message(s);
@@ -294,7 +294,8 @@ class MailApp {
 
 // Test
 
-method test() {
+method test()
+{
 
   var ma := new MailApp(); assert ma.inbox.name == "Inbox";
                            assert ma.drafts.name == "Drafts";
